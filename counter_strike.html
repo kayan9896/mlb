@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rifle Cover Defense</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --panel: rgba(7, 12, 20, .72);
+      --panel-strong: rgba(7, 12, 20, .9);
+      --line: rgba(255,255,255,.16);
+      --accent: #74d7ff;
+      --danger: #ff4f5e;
+      --ok: #63f08f;
+      --warn: #ffd15c;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #050812;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      cursor: none;
+      background: #07111f;
+    }
+
+    #hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      color: white;
+      text-shadow: 0 2px 10px rgba(0,0,0,.55);
+    }
+
+    .topbar {
+      position: absolute;
+      top: 18px;
+      left: 18px;
+      right: 18px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(14, 23, 38, .78), rgba(5, 9, 17, .72));
+      backdrop-filter: blur(12px);
+      border-radius: 18px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.26);
+    }
+
+    .status {
+      min-width: 285px;
+      padding: 14px 16px;
+    }
+
+    .status h1 {
+      margin: 0 0 10px;
+      font-size: 15px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.78);
+      font-weight: 800;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      font-size: 13px;
+      color: rgba(255,255,255,.82);
+      margin-top: 8px;
+    }
+
+    .value {
+      font-weight: 900;
+      letter-spacing: .04em;
+      color: white;
+    }
+
+    .damage-pips {
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      gap: 4px;
+      margin-top: 10px;
+    }
+
+    .pip {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.15);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.1);
+    }
+
+    .pip.hit {
+      background: linear-gradient(90deg, #ff3551, #ff8d5c);
+      box-shadow: 0 0 16px rgba(255,53,81,.36);
+    }
+
+    .brief {
+      max-width: 440px;
+      padding: 14px 16px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: rgba(255,255,255,.78);
+    }
+
+    .brief b {
+      color: white;
+    }
+
+    .cover-indicator {
+      position: absolute;
+      left: 50%;
+      bottom: 122px;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 13px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      background: rgba(0,0,0,.42);
+      border: 1px solid rgba(255,255,255,.15);
+      opacity: .9;
+    }
+
+    .cover-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--danger);
+      box-shadow: 0 0 16px var(--danger);
+    }
+
+    .cover-indicator.safe .cover-dot {
+      background: var(--ok);
+      box-shadow: 0 0 16px var(--ok);
+    }
+
+    .cover-indicator.partial .cover-dot {
+      background: var(--warn);
+      box-shadow: 0 0 16px var(--warn);
+    }
+
+    #message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      min-width: min(560px, calc(100vw - 34px));
+      padding: 28px;
+      text-align: center;
+      display: none;
+      pointer-events: auto;
+    }
+
+    #message h2 {
+      margin: 0 0 8px;
+      font-size: clamp(34px, 5vw, 62px);
+      line-height: 1;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    #message p {
+      margin: 0 auto 20px;
+      max-width: 440px;
+      color: rgba(255,255,255,.76);
+      line-height: 1.5;
+    }
+
+    button {
+      pointer-events: auto;
+      border: 0;
+      border-radius: 999px;
+      padding: 13px 20px;
+      font: inherit;
+      font-weight: 900;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: #06111d;
+      background: linear-gradient(135deg, #80e4ff, #78ffad);
+      box-shadow: 0 14px 36px rgba(116,215,255,.25);
+      cursor: pointer;
+    }
+
+    button:focus-visible {
+      outline: 3px solid white;
+      outline-offset: 4px;
+    }
+
+    .flash {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(circle at center, rgba(255,71,84,.22), rgba(255,71,84,0) 55%);
+      opacity: 0;
+      transition: opacity .18s ease;
+      mix-blend-mode: screen;
+    }
+
+    .flash.on {
+      opacity: 1;
+      transition: none;
+    }
+
+    @media (max-width: 760px) {
+      .topbar {
+        flex-direction: column;
+        right: auto;
+      }
+
+      .brief {
+        max-width: calc(100vw - 36px);
+      }
+
+      .status {
+        min-width: calc(100vw - 36px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" aria-label="3D rifle defense game canvas"></canvas>
+
+  <div id="hud" aria-hidden="true">
+    <div class="topbar">
+      <section class="panel status">
+        <h1>Rifle Defense</h1>
+        <div class="row"><span>Enemies remaining</span><span class="value" id="enemyCount">5 / 5</span></div>
+        <div class="row"><span>Bullets sustained</span><span class="value" id="hitCount">0 / 10</span></div>
+        <div class="damage-pips" id="pips"></div>
+      </section>
+
+      <section class="panel brief">
+        <b>Left click</b> to fire. A <b>headshot</b> kills instantly; body shots require <b>10 hits</b>.
+        Use the <b>arrow keys</b> to strafe behind the concrete obstacle and break enemy line of fire.
+      </section>
+    </div>
+
+    <div class="cover-indicator" id="coverIndicator">
+      <span class="cover-dot"></span>
+      <span id="coverText">Exposed</span>
+    </div>
+
+    <section class="panel" id="message">
+      <h2 id="messageTitle">Victory</h2>
+      <p id="messageBody">All enemies are down.</p>
+      <button id="restart">Restart Mission</button>
+    </section>
+  </div>
+
+  <div class="flash" id="damageFlash"></div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d", { alpha: false });
+      const enemyCountEl = document.getElementById("enemyCount");
+      const hitCountEl = document.getElementById("hitCount");
+      const pipsEl = document.getElementById("pips");
+      const coverIndicator = document.getElementById("coverIndicator");
+      const coverText = document.getElementById("coverText");
+      const message = document.getElementById("message");
+      const messageTitle = document.getElementById("messageTitle");
+      const messageBody = document.getElementById("messageBody");
+      const restartButton = document.getElementById("restart");
+      const damageFlash = document.getElementById("damageFlash");
+
+      let W = 1;
+      let H = 1;
+      let DPR = 1;
+      let horizon = 1;
+
+      const keys = new Set();
+      const mouse = { x: 0, y: 0, down: false };
+      const player = { x: 0.95, hits: 0, speed: 2.35 };
+      const cover = { x: -0.8, z: 1.44, w: 1.62, d: 0.46, h: 1.18 };
+      const game = {
+        state: "playing",
+        time: 0,
+        last: performance.now(),
+        recoil: 0,
+        muzzle: 0,
+        shake: 0,
+        shotCooldown: 0,
+        killed: 0
+      };
+
+      let enemies = [];
+      let tracers = [];
+      let particles = [];
+      let floaters = [];
+
+      for (let i = 0; i < 10; i++) {
+        const pip = document.createElement("span");
+        pip.className = "pip";
+        pipsEl.appendChild(pip);
+      }
+
+      function rand(min, max) {
+        return min + Math.random() * (max - min);
+      }
+
+      function resize() {
+        DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+        W = Math.floor(window.innerWidth);
+        H = Math.floor(window.innerHeight);
+        canvas.width = Math.floor(W * DPR);
+        canvas.height = Math.floor(H * DPR);
+        canvas.style.width = W + "px";
+        canvas.style.height = H + "px";
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        horizon = H * 0.405;
+        if (!mouse.x && !mouse.y) {
+          mouse.x = W / 2;
+          mouse.y = H / 2;
+        }
+      }
+
+      function reset() {
+        player.x = 0.95;
+        player.hits = 0;
+        game.state = "playing";
+        game.time = 0;
+        game.recoil = 0;
+        game.muzzle = 0;
+        game.shake = 0;
+        game.shotCooldown = 0;
+        game.killed = 0;
+        tracers = [];
+        particles = [];
+        floaters = [];
+        enemies = [
+          makeEnemy(1, -2.15, 10.7, 0.26),
+          makeEnemy(2, -1.05, 8.7, 0.23),
+          makeEnemy(3, 0.15, 11.7, 0.21),
+          makeEnemy(4, 1.28, 9.9, 0.24),
+          makeEnemy(5, 2.2, 13.2, 0.22)
+        ];
+        message.style.display = "none";
+        updateHud();
+      }
+
+      function makeEnemy(id, x, z, speed) {
+        return {
+          id,
+          x,
+          baseX: x,
+          z,
+          speed,
+          alive: true,
+          bodyHits: 0,
+          nextShot: rand(1.0, 2.2),
+          bob: rand(0, Math.PI * 2),
+          aimFlash: 0,
+          zones: null
+        };
+      }
+
+      function project(x, y, z) {
+        const safeZ = Math.max(0.22, z);
+        const scale = Math.min(900, 570 / (safeZ + 0.24));
+        return {
+          x: W / 2 + (x - player.x) * scale,
+          y: horizon + (1.48 - y) * scale,
+          s: scale
+        };
+      }
+
+      function lineBlocked(enemyX, enemyZ) {
+        if (enemyZ <= cover.z + cover.d * 0.5) return false;
+        const t = cover.z / enemyZ;
+        const xAtCover = player.x + (enemyX - player.x) * t;
+        return xAtCover >= cover.x - cover.w / 2 && xAtCover <= cover.x + cover.w / 2;
+      }
+
+      function blockedCount() {
+        let live = 0;
+        let blocked = 0;
+        for (const e of enemies) {
+          if (!e.alive) continue;
+          live++;
+          if (lineBlocked(e.x, e.z)) blocked++;
+        }
+        return { live, blocked };
+      }
+
+      function addFloater(text, x, y, color) {
+        floaters.push({ text, x, y, vy: -34, life: 0.9, color });
+      }
+
+      function addParticles(x, y, color, count, spread) {
+        for (let i = 0; i < count; i++) {
+          particles.push({
+            x,
+            y,
+            vx: rand(-spread, spread),
+            vy: rand(-spread, spread),
+            r: rand(1.5, 4.5),
+            life: rand(0.28, 0.68),
+            color
+          });
+        }
+      }
+
+      function fire() {
+        if (game.state !== "playing" || game.shotCooldown > 0) return;
+
+        game.shotCooldown = 0.13;
+        game.recoil = 1;
+        game.muzzle = 0.08;
+        game.shake = Math.max(game.shake, 4);
+
+        let candidates = [];
+        for (const e of enemies) {
+          if (!e.alive || !e.zones) continue;
+          const h = e.zones.head;
+          const b = e.zones.body;
+          const dx = mouse.x - h.x;
+          const dy = mouse.y - h.y;
+          const headHit = dx * dx + dy * dy <= h.r * h.r;
+          const bodyHit = mouse.x >= b.x && mouse.x <= b.x + b.w && mouse.y >= b.y && mouse.y <= b.y + b.h;
+
+          if (headHit || bodyHit) {
+            candidates.push({ enemy: e, head: headHit, body: bodyHit, z: e.z });
+          }
+        }
+
+        candidates.sort((a, b) => a.z - b.z);
+
+        if (candidates.length) {
+          const hit = candidates[0];
+          const e = hit.enemy;
+
+          if (lineBlocked(e.x, e.z)) {
+            const impact = project(cover.x, cover.h * 0.75, cover.z);
+            addParticles(impact.x, impact.y, "#ffe08a", 18, 90);
+            addFloater("COVER", impact.x, impact.y - 24, "#ffd15c");
+            return;
+          }
+
+          if (hit.head) {
+            e.alive = false;
+            game.killed++;
+            const p = e.zones.head;
+            addParticles(p.x, p.y, "#ff5f6f", 30, 130);
+            addFloater("HEADSHOT", p.x, p.y - 32, "#78ffad");
+          } else {
+            e.bodyHits++;
+            const p = { x: mouse.x, y: mouse.y };
+            addParticles(p.x, p.y, "#ffcf7a", 10, 75);
+            if (e.bodyHits >= 10) {
+              e.alive = false;
+              game.killed++;
+              addParticles(p.x, p.y, "#ff5f6f", 26, 120);
+              addFloater("DOWN", p.x, p.y - 28, "#78ffad");
+            } else {
+              addFloater(e.bodyHits + "/10", p.x, p.y - 20, "#ffd15c");
+            }
+          }
+
+          updateHud();
+          if (game.killed >= enemies.length) {
+            endGame(true);
+          }
+        } else {
+          addFloater("MISS", mouse.x, mouse.y - 24, "rgba(255,255,255,.72)");
+        }
+      }
+
+      function enemyShoot(e) {
+        const muzzle = project(e.x + 0.24, 1.16, e.z);
+        const blocked = lineBlocked(e.x, e.z);
+        let end;
+
+        if (blocked) {
+          const t = cover.z / e.z;
+          const xAtCover = player.x + (e.x - player.x) * t;
+          end = project(xAtCover, rand(0.45, 1.05), cover.z);
+          addParticles(end.x, end.y, "#ffdc7a", 14, 80);
+        } else {
+          end = { x: W / 2 + rand(-36, 36), y: H * 0.58 + rand(-32, 36) };
+          if (Math.random() < 0.86) {
+            takeDamage();
+          } else {
+            addFloater("NEAR MISS", end.x, end.y - 26, "#74d7ff");
+          }
+        }
+
+        tracers.push({
+          x1: muzzle.x,
+          y1: muzzle.y,
+          x2: end.x,
+          y2: end.y,
+          life: 0.16,
+          blocked
+        });
+
+        e.aimFlash = 0.12;
+      }
+
+      function takeDamage() {
+        if (game.state !== "playing") return;
+        player.hits++;
+        game.shake = Math.max(game.shake, 14);
+        damageFlash.classList.add("on");
+        window.setTimeout(() => damageFlash.classList.remove("on"), 45);
+        updateHud();
+        if (player.hits >= 10) {
+          endGame(false);
+        }
+      }
+
+      function endGame(won) {
+        game.state = won ? "won" : "lost";
+        messageTitle.textContent = won ? "Victory" : "Mission Failed";
+        messageBody.textContent = won
+          ? "All five enemies are down. Headshots kept the fight short."
+          : "You sustained 10 bullets. Use the arrow keys to stay behind the concrete obstacle between shots.";
+        message.style.display = "block";
+      }
+
+      function updateHud() {
+        const remaining = enemies.filter(e => e.alive).length;
+        enemyCountEl.textContent = remaining + " / " + enemies.length;
+        hitCountEl.textContent = player.hits + " / 10";
+
+        const pips = pipsEl.children;
+        for (let i = 0; i < pips.length; i++) {
+          pips[i].classList.toggle("hit", i < player.hits);
+        }
+      }
+
+      function update(dt) {
+        game.time += dt;
+        game.recoil = Math.max(0, game.recoil - dt * 8);
+        game.muzzle = Math.max(0, game.muzzle - dt);
+        game.shake = Math.max(0, game.shake - dt * 18);
+        game.shotCooldown = Math.max(0, game.shotCooldown - dt);
+
+        if (game.state === "playing") {
+          let move = 0;
+          if (keys.has("ArrowLeft")) move -= 1;
+          if (keys.has("ArrowRight")) move += 1;
+          if (keys.has("ArrowUp")) move -= 0.72;
+          if (keys.has("ArrowDown")) move += 0.72;
+
+          player.x += move * player.speed * dt;
+          player.x = Math.max(-3.05, Math.min(3.05, player.x));
+
+          for (const e of enemies) {
+            if (!e.alive) continue;
+            e.bob += dt * 4.2;
+            e.x = e.baseX + Math.sin(game.time * 0.7 + e.id) * 0.08;
+
+            const stop = 2.25 + (Math.abs(e.baseX) * 0.05);
+            if (e.z > stop) {
+              e.z -= e.speed * dt;
+            }
+
+            e.nextShot -= dt;
+            e.aimFlash = Math.max(0, e.aimFlash - dt);
+            if (e.nextShot <= 0) {
+              enemyShoot(e);
+              const closeFactor = e.z < 4 ? 0.65 : 1;
+              e.nextShot = rand(1.08, 2.05) * closeFactor;
+            }
+          }
+        }
+
+        for (let i = tracers.length - 1; i >= 0; i--) {
+          tracers[i].life -= dt;
+          if (tracers[i].life <= 0) tracers.splice(i, 1);
+        }
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.life -= dt;
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.vy += 170 * dt;
+          if (p.life <= 0) particles.splice(i, 1);
+        }
+
+        for (let i = floaters.length - 1; i >= 0; i--) {
+          const f = floaters[i];
+          f.life -= dt;
+          f.y += f.vy * dt;
+          if (f.life <= 0) floaters.splice(i, 1);
+        }
+
+        const c = blockedCount();
+        coverIndicator.classList.remove("safe", "partial");
+        if (c.live > 0 && c.blocked === c.live) {
+          coverIndicator.classList.add("safe");
+          coverText.textContent = "In Cover";
+        } else if (c.blocked > 0) {
+          coverIndicator.classList.add("partial");
+          coverText.textContent = "Partial Cover " + c.blocked + "/" + c.live;
+        } else {
+          coverText.textContent = "Exposed";
+        }
+      }
+
+      function drawBackground() {
+        const sky = ctx.createLinearGradient(0, 0, 0, horizon + 90);
+        sky.addColorStop(0, "#081327");
+        sky.addColorStop(0.45, "#13345c");
+        sky.addColorStop(1, "#27364a");
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, W, horizon + 95);
+
+        ctx.save();
+        ctx.globalAlpha = 0.72;
+        ctx.beginPath();
+        ctx.arc(W * 0.78, H * 0.16, 44, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffe9a4";
+        ctx.shadowColor = "#ffe9a4";
+        ctx.shadowBlur = 42;
+        ctx.fill();
+        ctx.restore();
+
+        const ground = ctx.createLinearGradient(0, horizon, 0, H);
+        ground.addColorStop(0, "#2f3b39");
+        ground.addColorStop(1, "#121818");
+        ctx.fillStyle = ground;
+        ctx.fillRect(0, horizon, W, H - horizon);
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(196,235,255,.16)";
+        ctx.lineWidth = 1;
+
+        for (let z = 1.4; z <= 18; z += 0.75) {
+          const a = project(-6, 0, z);
+          const b = project(6, 0, z);
+          ctx.globalAlpha = Math.max(0.05, 0.34 - z * 0.014);
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+
+        for (let x = -6; x <= 6; x += 0.75) {
+          const a = project(x, 0, 1.2);
+          const b = project(x, 0, 18);
+          ctx.globalAlpha = 0.16;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = "#0b1420";
+        for (let i = 0; i < 12; i++) {
+          const x = (i / 11) * W;
+          const h = 40 + Math.sin(i * 1.7) * 18 + (i % 3) * 16;
+          ctx.fillRect(x - 24, horizon - h, 52, h);
+        }
+        ctx.restore();
+      }
+
+      function drawEnemy(e) {
+        if (!e.alive) {
+          e.zones = null;
+          return;
+        }
+
+        const foot = project(e.x, 0, e.z);
+        const head = project(e.x, 1.58 + Math.sin(e.bob) * 0.025, e.z);
+        const chest = project(e.x, 0.98, e.z);
+        const scale = foot.s;
+        const bodyW = Math.max(18, 0.5 * scale);
+        const bodyH = Math.max(36, 0.84 * scale);
+        const headR = Math.max(12, 0.19 * scale);
+        const legW = bodyW * 0.24;
+        const bob = Math.sin(e.bob) * scale * 0.018;
+
+        e.zones = {
+          head: { x: head.x, y: head.y, r: headR * 1.08 },
+          body: { x: chest.x - bodyW * 0.58, y: chest.y - bodyH * 0.52, w: bodyW * 1.16, h: bodyH * 1.15 }
+        };
+
+        ctx.save();
+
+        const aura = ctx.createRadialGradient(chest.x, chest.y, 2, chest.x, chest.y, bodyH * 1.15);
+        aura.addColorStop(0, "rgba(255,72,88,.22)");
+        aura.addColorStop(1, "rgba(255,72,88,0)");
+        ctx.fillStyle = aura;
+        ctx.beginPath();
+        ctx.ellipse(chest.x, chest.y, bodyW, bodyH * 1.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = "rgba(0,0,0,.55)";
+        ctx.lineWidth = Math.max(2, scale * 0.018);
+        ctx.lineCap = "round";
+
+        ctx.beginPath();
+        ctx.moveTo(chest.x - bodyW * 0.18, chest.y + bodyH * 0.36);
+        ctx.lineTo(foot.x - legW, foot.y + bob);
+        ctx.moveTo(chest.x + bodyW * 0.18, chest.y + bodyH * 0.36);
+        ctx.lineTo(foot.x + legW, foot.y - bob);
+        ctx.stroke();
+
+        ctx.fillStyle = "#263344";
+        roundRect(chest.x - bodyW / 2, chest.y - bodyH / 2, bodyW, bodyH, Math.max(5, scale * 0.04));
+        ctx.fill();
+
+        const vest = ctx.createLinearGradient(chest.x, chest.y - bodyH / 2, chest.x, chest.y + bodyH / 2);
+        vest.addColorStop(0, "#485b69");
+        vest.addColorStop(1, "#17202b");
+        ctx.fillStyle = vest;
+        roundRect(chest.x - bodyW * 0.42, chest.y - bodyH * 0.42, bodyW * 0.84, bodyH * 0.76, Math.max(4, scale * 0.025));
+        ctx.fill();
+
+        ctx.strokeStyle = "#171c22";
+        ctx.lineWidth = Math.max(3, scale * 0.035);
+        ctx.beginPath();
+        ctx.moveTo(chest.x - bodyW * 0.45, chest.y - bodyH * 0.16);
+        ctx.lineTo(chest.x - bodyW * 0.86, chest.y + bodyH * 0.08);
+        ctx.moveTo(chest.x + bodyW * 0.45, chest.y - bodyH * 0.17);
+        ctx.lineTo(chest.x + bodyW * 0.82, chest.y + bodyH * 0.02);
+        ctx.stroke();
+
+        ctx.strokeStyle = "#0b0d10";
+        ctx.lineWidth = Math.max(4, scale * 0.032);
+        ctx.beginPath();
+        ctx.moveTo(chest.x + bodyW * 0.44, chest.y - bodyH * 0.07);
+        ctx.lineTo(chest.x + bodyW * 1.02, chest.y - bodyH * 0.17);
+        ctx.stroke();
+
+        if (e.aimFlash > 0) {
+          ctx.save();
+          ctx.globalAlpha = e.aimFlash / 0.12;
+          ctx.fillStyle = "#fff2b0";
+          ctx.shadowColor = "#ffd15c";
+          ctx.shadowBlur = 20;
+          ctx.beginPath();
+          ctx.arc(chest.x + bodyW * 1.08, chest.y - bodyH * 0.19, Math.max(3, scale * 0.038), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        ctx.fillStyle = "#b58b6e";
+        ctx.beginPath();
+        ctx.arc(head.x, head.y, headR, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#171d25";
+        ctx.beginPath();
+        ctx.arc(head.x, head.y - headR * 0.24, headR * 1.02, Math.PI, 0);
+        ctx.fill();
+
+        ctx.fillStyle = "rgba(0,0,0,.5)";
+        ctx.fillRect(head.x - headR * 0.55, head.y - headR * 0.04, headR * 1.1, Math.max(2, headR * 0.16));
+
+        if (e.bodyHits > 0) {
+          const barW = Math.max(36, bodyW * 1.28);
+          const barH = Math.max(5, scale * 0.035);
+          const y = head.y - headR - barH - 8;
+          ctx.fillStyle = "rgba(0,0,0,.48)";
+          roundRect(head.x - barW / 2, y, barW, barH, barH / 2);
+          ctx.fill();
+          ctx.fillStyle = "#ffd15c";
+          roundRect(head.x - barW / 2, y, barW * (e.bodyHits / 10), barH, barH / 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+
+      function drawCover() {
+        const x1 = cover.x - cover.w / 2;
+        const x2 = cover.x + cover.w / 2;
+        const z1 = cover.z - cover.d / 2;
+        const z2 = cover.z + cover.d / 2;
+        const y0 = 0;
+        const y1 = cover.h;
+
+        const fbl = project(x1, y0, z1);
+        const fbr = project(x2, y0, z1);
+        const ftl = project(x1, y1, z1);
+        const ftr = project(x2, y1, z1);
+        const btl = project(x1, y1, z2);
+        const btr = project(x2, y1, z2);
+        const bbr = project(x2, y0, z2);
+
+        ctx.save();
+
+        ctx.fillStyle = "#54616a";
+        ctx.beginPath();
+        ctx.moveTo(ftl.x, ftl.y);
+        ctx.lineTo(ftr.x, ftr.y);
+        ctx.lineTo(btr.x, btr.y);
+        ctx.lineTo(btl.x, btl.y);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = "#303940";
+        ctx.beginPath();
+        ctx.moveTo(ftr.x, ftr.y);
+        ctx.lineTo(fbr.x, fbr.y);
+        ctx.lineTo(bbr.x, bbr.y);
+        ctx.lineTo(btr.x, btr.y);
+        ctx.closePath();
+        ctx.fill();
+
+        const front = ctx.createLinearGradient(0, ftl.y, 0, fbl.y);
+        front.addColorStop(0, "#6f7c84");
+        front.addColorStop(1, "#2d353b");
+        ctx.fillStyle = front;
+        ctx.beginPath();
+        ctx.moveTo(ftl.x, ftl.y);
+        ctx.lineTo(ftr.x, ftr.y);
+        ctx.lineTo(fbr.x, fbr.y);
+        ctx.lineTo(fbl.x, fbl.y);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = "rgba(255,255,255,.16)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.globalAlpha = 0.18;
+        ctx.strokeStyle = "#101820";
+        for (let i = 1; i < 5; i++) {
+          const t = i / 5;
+          const ax = ftl.x + (ftr.x - ftl.x) * t;
+          const ay = ftl.y + (ftr.y - ftl.y) * t;
+          const bx = fbl.x + (fbr.x - fbl.x) * t;
+          const by = fbl.y + (fbr.y - fbl.y) * t;
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(bx, by);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      function drawTracers() {
+        for (const t of tracers) {
+          const a = Math.max(0, t.life / 0.16);
+          ctx.save();
+          ctx.globalAlpha = a;
+          ctx.strokeStyle = t.blocked ? "#ffd15c" : "#ff5a5f";
+          ctx.lineWidth = t.blocked ? 2 : 2.4;
+          ctx.shadowColor = ctx.strokeStyle;
+          ctx.shadowBlur = 14;
+          ctx.beginPath();
+          ctx.moveTo(t.x1, t.y1);
+          ctx.lineTo(t.x2, t.y2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      function drawParticles() {
+        for (const p of particles) {
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, p.life * 1.8);
+          ctx.fillStyle = p.color;
+          ctx.shadowColor = p.color;
+          ctx.shadowBlur = 12;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      function drawFloaters() {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = "900 15px Inter, system-ui, sans-serif";
+        for (const f of floaters) {
+          ctx.globalAlpha = Math.max(0, Math.min(1, f.life * 1.8));
+          ctx.fillStyle = f.color;
+          ctx.shadowColor = "rgba(0,0,0,.85)";
+          ctx.shadowBlur = 9;
+          ctx.fillText(f.text, f.x, f.y);
+        }
+        ctx.restore();
+      }
+
+      function drawRifle() {
+        const recoil = game.recoil * 13;
+        const ox = W * 0.66 + recoil;
+        const oy = H * 0.82 + recoil * 0.28;
+
+        ctx.save();
+
+        ctx.fillStyle = "rgba(0,0,0,.24)";
+        ctx.beginPath();
+        ctx.ellipse(W * 0.72, H + 20, W * 0.42, H * 0.17, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#10151c";
+        ctx.beginPath();
+        ctx.moveTo(ox - 26, oy + 80);
+        ctx.lineTo(ox + 250, oy + 128);
+        ctx.lineTo(ox + 228, oy + 182);
+        ctx.lineTo(ox - 54, oy + 132);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = "#252d36";
+        ctx.beginPath();
+        ctx.moveTo(ox - 4, oy + 26);
+        ctx.lineTo(ox + 246, oy + 76);
+        ctx.lineTo(ox + 232, oy + 112);
+        ctx.lineTo(ox - 18, oy + 64);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = "#3e4a55";
+        ctx.beginPath();
+        ctx.moveTo(ox + 24, oy + 8);
+        ctx.lineTo(ox + 230, oy + 49);
+        ctx.lineTo(ox + 224, oy + 67);
+        ctx.lineTo(ox + 18, oy + 28);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = "#0a0d11";
+        ctx.lineWidth = 11;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(ox + 170, oy + 51);
+        ctx.lineTo(W + 58 + recoil, oy - 6);
+        ctx.stroke();
+
+        ctx.strokeStyle = "#485765";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(ox + 170, oy + 48);
+        ctx.lineTo(W + 58 + recoil, oy - 9);
+        ctx.stroke();
+
+        ctx.fillStyle = "#0c1015";
+        roundRect(ox + 68, oy + 68, 48, 86, 8);
+        ctx.fill();
+
+        ctx.strokeStyle = "rgba(255,255,255,.13)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        if (game.muzzle > 0) {
+          const a = game.muzzle / 0.08;
+          ctx.globalAlpha = a;
+          const mx = W - 10 + recoil;
+          const my = oy - 13;
+          const grad = ctx.createRadialGradient(mx, my, 4, mx, my, 70);
+          grad.addColorStop(0, "#fff8ca");
+          grad.addColorStop(0.35, "#ffb03c");
+          grad.addColorStop(1, "rgba(255,176,60,0)");
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(mx, my, 72, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+
+      function drawCrosshair() {
+        ctx.save();
+        ctx.translate(mouse.x, mouse.y);
+        const pulse = game.shotCooldown > 0 ? 1 + game.shotCooldown * 8 : 1;
+        ctx.strokeStyle = "rgba(255,255,255,.94)";
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = "rgba(0,0,0,.9)";
+        ctx.shadowBlur = 8;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, 7 * pulse, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(-24 * pulse, 0);
+        ctx.lineTo(-11 * pulse, 0);
+        ctx.moveTo(11 * pulse, 0);
+        ctx.lineTo(24 * pulse, 0);
+        ctx.moveTo(0, -24 * pulse);
+        ctx.lineTo(0, -11 * pulse);
+        ctx.moveTo(0, 11 * pulse);
+        ctx.lineTo(0, 24 * pulse);
+        ctx.stroke();
+
+        ctx.fillStyle = "rgba(116,215,255,.95)";
+        ctx.beginPath();
+        ctx.arc(0, 0, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function roundRect(x, y, w, h, r) {
+        const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + rr, y);
+        ctx.lineTo(x + w - rr, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+        ctx.lineTo(x + w, y + h - rr);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+        ctx.lineTo(x + rr, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+        ctx.lineTo(x, y + rr);
+        ctx.quadraticCurveTo(x, y, x + rr, y);
+        ctx.closePath();
+      }
+
+      function render() {
+        const sx = game.shake ? rand(-game.shake, game.shake) : 0;
+        const sy = game.shake ? rand(-game.shake, game.shake) : 0;
+
+        ctx.save();
+        ctx.translate(sx, sy);
+
+        drawBackground();
+
+        const sorted = enemies.slice().sort((a, b) => b.z - a.z);
+        for (const e of sorted) drawEnemy(e);
+
+        drawCover();
+        drawTracers();
+        drawParticles();
+        drawFloaters();
+
+        ctx.restore();
+
+        drawRifle();
+        drawCrosshair();
+
+        ctx.save();
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, W, H);
+        ctx.restore();
+
+        if (game.state !== "playing") {
+          ctx.save();
+          ctx.fillStyle = "rgba(0,0,0,.36)";
+          ctx.fillRect(0, 0, W, H);
+          ctx.restore();
+        }
+      }
+
+      function loop(now) {
+        const dt = Math.min(0.033, (now - game.last) / 1000);
+        game.last = now;
+        update(dt);
+        render();
+        requestAnimationFrame(loop);
+      }
+
+      window.addEventListener("resize", resize);
+
+      window.addEventListener("keydown", (event) => {
+        if (event.key.startsWith("Arrow")) event.preventDefault();
+        keys.add(event.key);
+        if ((event.key === "r" || event.key === "R") && game.state !== "playing") reset();
+      }, { passive: false });
+
+      window.addEventListener("keyup", (event) => {
+        keys.delete(event.key);
+      });
+
+      canvas.addEventListener("mousemove", (event) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = event.clientX - rect.left;
+        mouse.y = event.clientY - rect.top;
+      });
+
+      canvas.addEventListener("mousedown", (event) => {
+        if (event.button !== 0) return;
+        mouse.down = true;
+        fire();
+      });
+
+      window.addEventListener("mouseup", () => {
+        mouse.down = false;
+      });
+
+      canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+
+      restartButton.addEventListener("click", reset);
+
+      resize();
+      reset();
+      requestAnimationFrame((now) => {
+        game.last = now;
+        requestAnimationFrame(loop);
+      });
+    })();
+  </script>
+</body>
+</html>
